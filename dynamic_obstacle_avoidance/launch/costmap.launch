@@ -1,0 +1,11 @@
+<launch>
+
+  <!-- Start publishing the map->odom transform -->
+  <node name="main_pub_map_odom" pkg="example_controller" type="main_pub_map_odom" />
+  
+  <!-- Run the costmap node -->
+  <node name="costmap_node" pkg="costmap_2d" type="costmap_2d_node" >
+    <rosparam file="$(find example_controller)/launch/costmap_param/costmap_params.yaml" command="load" />
+  </node>
+
+</launch>
