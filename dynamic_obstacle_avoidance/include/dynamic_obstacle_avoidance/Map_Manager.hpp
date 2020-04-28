@@ -1,8 +1,12 @@
+#pragma once
+
 #include<cv_bridge/cv_bridge.h>
 #include<cstdlib>
 #include<image_transport/image_transport.h>
 #include<iostream>
 #include<opencv2/highgui/highgui.hpp>
+#include<opencv2/imgproc.hpp>
+#include<opencv2/imgcodecs.hpp>
 #include<ros/ros.h>
 #include<sensor_msgs/Image.h>
 #include<vector>
@@ -21,7 +25,7 @@ public:
   void createCfree(); // Creates a vector of free spaces
   std::vector<std::vector<int>> getCfree();  // returns the corresponding pixels which are free from obstacles
 
-  void dispMap(std::string s="OUTPUT_WINDOW");  // Displays the map as an image file.
+ void dispMap(std::string s="Map_Manager_OUTPUT_WINDOW");  // Displays the map as an image file.
 
   ~Map_Manager();  // Destructor
 
@@ -34,5 +38,5 @@ private:
   int callback_count_;
   image_transport::Subscriber img_Sub_;
   void laser_img_callback(const sensor_msgs::Image::ConstPtr &);
-
+  void smoothImage();
 };
