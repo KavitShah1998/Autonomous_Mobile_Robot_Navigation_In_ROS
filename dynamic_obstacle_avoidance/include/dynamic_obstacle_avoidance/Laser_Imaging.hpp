@@ -1,3 +1,5 @@
+#pragma once
+
 #include<cmath>
 #include<cstdlib>
 #include<cv_bridge/cv_bridge.h>
@@ -22,6 +24,7 @@ private:
   ros::NodeHandle nh_;
   ros::Subscriber laser_S_;
   image_transport::Publisher laser_P_;
+  ros::Rate loop_rate = ros::Rate(5);
 
   cv::Mat img_;
   int img_h_=200;
@@ -39,9 +42,9 @@ private:
 
   std::unordered_map <int, std::vector<int>> Hash_loc;  // create a Hash table to store (i,j) location of image end points for each of the 360 rays
   std::unordered_map <int, double> Hash_angl;  // create a Hash Map of distance of image boundary to image center along each of the 360* rays
-
+  void nodeRunner();
   void bresenham(std::vector<int>, std::vector<int>, int); // function to create lines from center point to obstacle point (as white pixel) and from obstacle point to image boundary (as black pixel)
-
+  void resetImage(); // reset the pixels of the original image to black
   int wrapAngle(int); // convert an angle from [-180, 180] to  [0,360];
   float to_d(float);  //convert an angle from radians to degrees
   float to_rad(float); //convert an angle from degrees to radians
