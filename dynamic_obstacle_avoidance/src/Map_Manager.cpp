@@ -30,16 +30,16 @@ bool Map_Manager::checkObstacle(std::vector<int> img_coords){
 // returns a vector<int> {i,j} in Map(i.e Image) Coord system
 std::vector<int> Map_Manager::getMapCoords(std::vector<double> world_coords){
  std::vector <int> img_coords;
- pixel_coord.push_back(100 - round(world_coords[0]*50));
- pixel_coord.push_back(100 - round(world_coords[1]*50));
+ pixel_coord.push_back(100 - round(world_coords[0]*img_resolution_));
+ pixel_coord.push_back(100 - round(world_coords[1]*img_resolution_));
  return img_coords;
 }
 
 // returns a vector<double> {x,y} in World_Coord system (world ref frame)
 std::vector<double> Map_Manager::getWorldCoords(std::vector<int> img_coords); {
  std::vector <double> world_coords;
- map_coord.push_back(100 - img_coords[0]*0.02);
- map_coord.push_back(100 - img_coords[1]*0.02);
+ map_coord.push_back((100 - img_coords[0])*(1/img_resolution_));
+ map_coord.push_back((100 - img_coords[1])*(1/img_resolution_));
  return world_coords;
 }
 
@@ -76,7 +76,7 @@ void Map_Manager::createCfree(){
 
 // returns the corresponding pixels which are free from obstacles
 std::vector<std::vector<int>> Map_Manager::getCfree(){
- return Cfree;
+ return Cfree_;
 }
 
 void Map_Manager::laser_img_callback(const sensor_msgs::Image::ConstPtr& m){
