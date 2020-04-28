@@ -1,27 +1,54 @@
 #include"dynamic_obstacle_avoidance/Laser_Imaging.hpp"
 
-laser_imaging::laser_imaging(ros::NodeHandle* nh): nh_(*nh){
 
-  laser_S_ = nh_.subscribe(sub_topic_, 10, & laser_imaging::subscriber_CallBack_, this);
+/*
+New Changes:
+added a new function : nodeRunner();
+changed the waitKey time function from 0 to 1 in dispImg();
+Eliminate call to publish_img() from subscriber_CallBack_;
+added loop_rate declaration to the hpp file
+*/
+
+/*
+IMP:
+send image form here,
+till a flag is reset in map manager, keep sending image.*/
+
+laser_imaging::laser_imaging(ros::NodeHandle* nh): nh_(*nh){
+  //std::cout<<"\n laser_imaging()";
+  laser_S_ = nh_.subscribe(sub_topic_, 50, & laser_imaging::subscriber_CallBack_, this);
 
   image_transport::ImageTransport it_(nh_);
   laser_P_ = it_.advertise(pub_topic_,1);
 
-  cv::Mat define_img_(img_h_,img_w_,CV_8UC1, cv::Scalar(155));
+  cv::Mat define_img_(img_h_,img_w_,CV_8UC1, cv::Scalar(255));
 
   img_ = define_img_;  // initialize img_
 
   initialize_HashMap();
+
+  nodeRunner();
 }
 
-/*
-~laser_imaging::laser_imaging()
+
+laser_imaging::~laser_imaging()
 {
-  std::cout<<"\n Object of Laser_imaging_node destructed\n";
+  //std::cout<<"\n Object of Laser_imaging_node destructed\n";
 }
-*/
+
+void laser_imaging::nodeRunner()
+{
+  //std::cout<<"\n nodeRunner()";
+  while(ros::ok())
+  {
+    publish_img();
+    ros::spinOnce();
+    loop_rate.sleep();
+  }
+}
 
 void laser_imaging::bresenham(std::vector<int>start_pixel, std::vector<int> end_pixel, int obs_state){
+   //std::cout<<"\n bresenham";
 // function to create lines from center point to obstacle point (as white pixel) and from obstacle point to image boundary (as black pixel)
   int i1,j1, i2,j2,i,j;
   float err=0,increment=0;
@@ -208,8 +235,11 @@ float laser_imaging::to_rad(float a){
 }
 
 void laser_imaging::subscriber_CallBack_(const sensor_msgs::LaserScan::ConstPtr &m){
+  //std::cout<<"\n Before LaserScan callback";
 // this callback function converts the scan data received from each callback into opencv image
-  std::cout<<"\n Recving Call backs";
+  static int c_ount = 0;
+  resetImage();
+  //std::cout<<"\n Recving Call backs";
    int sz = m->ranges.size();
     //int ii=30;
     for(int ii=0;ii<sz;ii++){
@@ -228,13 +258,13 @@ void laser_imaging::subscriber_CallBack_(const sensor_msgs::LaserScan::ConstPtr 
       double r = m->ranges[ii];
       double t = (m->angle_min + ii*m->angle_increment);  // theta in radians
 
-      std::cout<<"\n r= "<<r;
-      std::cout<<"\n t= "<<t;
+      //std::cout<<"\n r= "<<r;
+      //std::cout<<"\n t= "<<t;
       x = r * cos(t);
       y = r * sin(t);
 
-      std::cout<<"\n x= "<<x;
-      std::cout<<"\n y= "<<y;
+      //std::cout<<"\n x= "<<x;
+      //std::cout<<"\n y= "<<y;
 
       std::vector<int> obstacle_pixel;
       obstacle_pixel.emplace_back(img_center_i_ - x * img_resolution_);
@@ -245,36 +275,36 @@ void laser_imaging::subscriber_CallBack_(const sensor_msgs::LaserScan::ConstPtr 
       std::vector<int> end_of_scan_line_;
       end_of_scan_line_.emplace_back(img_i_end);
       end_of_scan_line_.emplace_back(img_j_end);
-
+      //std::cout<<"\n End of scan line point. \t"<< ii<< "\t"<< end_of_scan_line_[0]<<"\t"<<end_of_scan_line_[1];
       double dbl = sqrt (pow(x ,2) + pow(y,2));
 
-      std::cout<<"\n HI  -- CallBack";
+      //std::cout<<"\n HI  -- CallBack";
       if(dbl< Hash_angl[ii]){  // dist of obstc in this scan is within the allowable distance limit in theata direction
         bresenham( robot_posit_, obstacle_pixel,1);
         bresenham(obstacle_pixel, end_of_scan_line_,0);
-        std::cout<<"\n Robot Pixel: "<< robot_posit_[0]<<" , "<<robot_posit_[1];
-        std::cout<<"\n Obstacle Pixel :" << obstacle_pixel[0]<<" , "<<obstacle_pixel[1];
-        std::cout<<"\n End Pixel :" << end_of_scan_line_[0]<<" , "<<end_of_scan_line_[1];
+        //std::cout<<"\n Robot Pixel: "<< robot_posit_[0]<<" , "<<robot_posit_[1];
+        //std::cout<<"\n Obstacle Pixel :" << obstacle_pixel[0]<<" , "<<obstacle_pixel[1];
+        //std::cout<<"\n End Pixel :" << end_of_scan_line_[0]<<" , "<<end_of_scan_line_[1];
       }
       else// dist of obstc in this scan line is away from the allowable scan limit in theta direction
       {
         bresenham(robot_posit_,end_of_scan_line_,1);
-        std::cout<<"\n Robot Pixel: "<< robot_posit_[0]<<" , "<<robot_posit_[1];
-        std::cout<<"\n End Pixel :" << end_of_scan_line_[0]<<" , "<<end_of_scan_line_[1];
+        //std::cout<<"\n Robot Pixel: "<< robot_posit_[0]<<" , "<<robot_posit_[1];
+        //std::cout<<"\n End Pixel :" << end_of_scan_line_[0]<<" , "<<end_of_scan_line_[1];
       }
-
+      //std::cout<<"\n count= "<<c_ount;
+      c_ount++;
     }
-    std::cout<<"\n Hi there";
+    //std::cout<<"\n Hi there";
     dispImg();
     //std::cout<<"\n Range @ Theta  "<< (p->angle_min + ii * p->angle_increment)*180/M_PI <<" = "<< p->ranges[ii];
     //std::cout<<"\n Hello World "<<ros::Time::now();
 
-    publish_img();
+    //std::cout<<"\n Done executing dispImg()";
 
+    //std::cout<<"\n Image Address: "<<&img_;
+    //std::cout<<"\n After LaserScan Callback()";
 
-    cv::Mat define_img_(img_h_,img_w_,CV_8UC1, cv::Scalar(155));
-
-    img_ = define_img_;
 }
 
 void laser_imaging::dispHashMap(){
@@ -293,14 +323,25 @@ void laser_imaging::dispHashMap(){
 }
 
 void laser_imaging::publish_img(){
+
   //to publish the image as a sensor_msgs on "laser/image";
-  ros::Rate loop_rate(5);
+
   sensor_msgs::ImagePtr msg = cv_bridge::CvImage(std_msgs::Header(), "mono8", img_).toImageMsg();
   laser_P_.publish(msg);
-  loop_rate.sleep();
+
+
 }
 
+void laser_imaging::resetImage(){
 
+  for(int i=0;i<img_.rows;i++){
+    for(int j=0;j<img_.cols;j++){
+      img_.at<uchar>(i,j)=255;
+    }
+  }
+
+  //std::cout<<"\n Image Reset.\n";
+}
 void laser_imaging::dispImg(std::string s){
 // to display the image of environment using opencv libraries
 
@@ -309,7 +350,8 @@ void laser_imaging::dispImg(std::string s){
   }
   cv::namedWindow(s , cv::WINDOW_AUTOSIZE);
   cv::imshow(s, img_);
-  cv::waitKey(0);
+  cv::waitKey(1);
+
 }
 
 void laser_imaging::initialize_HashMap(){
@@ -427,5 +469,10 @@ void laser_imaging::initialize_HashMap(){
 }
 
 int main(int argc, char** argv){
+  ros::init(argc,argv, "laser_imaging_node");
+  ros::NodeHandle nh;
+
+  laser_imaging li(&nh);
+  std::cout<<"\n End of Main loop::";
   return 0;
 }
