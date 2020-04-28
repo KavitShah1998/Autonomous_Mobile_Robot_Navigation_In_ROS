@@ -13,12 +13,12 @@ public:
   Map_Manager(ros::NodeHandle*);  // Need a nodehandle as it subscribes to /map topic to receive local map (as a msg) as sensor_msgs/Image
 
   int getState(std::vector<int>);  // returns pixel value at a location specified in vector<int> {i,j}  // in image coordinate system
-  bool checkObstacle(std::vector<int>);
+  bool checkObstacle(std::vector<int>); // Checking for Obstacles
 
   std::vector<int> getMapCoords(std::vector<double>);  // returns a vector<int> {i,j} in Map(i.e Image) Coord system
   std::vector<double> getWorldCoords(std::vector<int>);  //returns a vector<double> {x,y} in World_Coord system (world ref frame)
 
-  void createCfree();
+  void createCfree(); // Creates a vector of free spaces
   std::vector<std::vector<int>> getCfree();  // returns the corresponding pixels which are free from obstacles
 
   void dispMap(std::string s="OUTPUT_WINDOW");  // Displays the map as an image file.
