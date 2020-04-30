@@ -16,7 +16,17 @@ local_planner::~local_planner(){
 float local_planner::calculateDistance_(std::vector<int> first_point, std::vector<int> second_point){
   return sqrt( pow(second_point[0] - first_point[0],2) + pow(second_point[1] - first_point[1],2) );
 }
-
+// generates random vector <i,j> in image coordinate frame 
+int local_planner::get_random_point_()
+{
+  std::vector <int> rand_no ;
+  std::random_device rd; // obtain a random number from hardware
+  std::mt19937 eng(rd()); // seed the generator
+  std::uniform_int_distribution<> i_j_range(0, 200); // define the range of i and j for now entered default values
+  rand_no.push_back(i_j_range(eng));
+  rand_no.push_back(i_j_range(eng));
+  return(rand_no)
+}
 bool local_planner::hasObstacle_(std::vector<int> Xnearest, std::vector<int> Xnew){
   // check if the straight line path between any two points (in particular Xneared and Xnew ) is free from obstacles{false} or not{true}
 
@@ -128,6 +138,54 @@ std::vector<int> local_planner::newNode_(std::vector<int> Xnear, std::vector<int
   return ((calculateDistance_(point_1,Xrand)< calculateDistance_(point_2,Xrand))? point_1:point_2);
 }
 
+// returns a vector of integers <indices__of_nodes_in_tree> which are inside the region_radius around the point Xnew<i,j>
+std::vector<int> Planner::getNeighbourhood(std::vector<int> Xnew)
+{
+  std::vector<int> neighbourhood;
+  for(i=0;i,tree.size();i++)
+  {
+    if(calculateDistance_(tree[i].img_c_,Xnew)< = region_radius_)
+    {
+      neighbourhood.push_back(i);
+    }
+  }
+  return neighbourhood;
+}
+
+// it returns the index of best parent for a given node X_new whose neighbourhood (indices of nearby nodes) is given to it as input args  //SOUMYA
+std::vector<int> Planner::get_best_parent(std::vector<int> neighbourhood)
+{
+  double min = tree[neighbourhood[0]].costToCome;
+  std::vector<int> Xnear = tree[neighbourhood[0]].node;
+  int position = neighbourhood[0];
+  for (int i = 1; i < neighbourhood.size(); i++)
+  {
+    if (min > tree[neighbourhood[i]].costToCome)
+    {
+      min = tree[neighbourhood[i]].costToCome;
+      Xnear = tree[neighbourhood[i]].node;
+      position = neighbourhood[i];
+    }
+  }
+  Xnear.push_back(position);
+  return Xnear;
+}
+
+
+//this node returns the index of parent node for the given child node passed to it in args. The parent is seached from looking thru 'children_indices_' in the struct of tree nodes
+ long Planner::findParent(long child_index)
+{
+  for (long i = 0; i < tree.size(); i++)
+  {
+    for (int j = 0; j < tree[i].children_indices_.size(); j++)
+    {
+      if (tree[i].children_indices_[j] == child_index)
+        return i;
+    }
+  }
+}
+
+// Reversing the path for the controller purposes
 void local_planner::reversePath_(){
   for(int ii = path_.size()-1; ii>=0;ii--){
     reversePath_[path_.size()-1-ii] = path_[ii];
