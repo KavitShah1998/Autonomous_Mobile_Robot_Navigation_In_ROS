@@ -1,9 +1,13 @@
-#include<iostream>
-#include<ros/ros.h>
+#pragma once
+
+//#include<iostream>
+//#include<ros/ros.h>
 #include<geometry_msgs/PoseStamped.h>
 #include<math.h>
 #include"dynamic_obstacle_avoidance/Map_Manager.hpp"
-#include<vector>
+//#include<vector>
+
+
 class local_planner{
 public:
   local_planner(Map_Manager manager, int step_size);
@@ -18,11 +22,11 @@ private:
   };
 
   std::vector<node> tree;
-  std::vector<std::vector<float>> Cfree_;
+  std::vector<std::vector<int>> Cfree_;
   float region_radius_;
   int branch_length;
   float distance_to_goal_;
-  Map_Manager mapper_;
+  Map_Manager regional_manager_;
   vector<geometry_msgs::PoseStamped> path_reversed_;
   vector<geometry_msgs::PoseStamped> path_;
 
