@@ -1,0 +1,8 @@
+id: 1
+
+# x, y, theta
+start: [0,  0, 0]
+goal:  [0,  0, 0]
+
+grid_connections: 4
+
