@@ -1,495 +1,457 @@
+//om
 
-#include"hierarchical_motion_planner/global_planner2.h"
-
-using namespace std;
+# include "hierarchical_motion_planner/global_planner.h"
 
 
-GlobalPlanner::GlobalPlanner()
-{
-    ROS_INFO("Default constructor");
-}
 
-GlobalPlanner::GlobalPlanner(ros::NodeHandle &nh /*,std::vector<float> start_point , std::vector<float> end_point*/){
-    pub_path_ = nh.advertise<hierarchical_motion_planner::Trajectory>("global_path",1);
 
-    ROS_INFO("Sensing node initialised...");
-    if(nh.hasParam("costmap_node/costmap/width")){
-        nh.getParam("costmap_node/costmap/width",grid_size_);
-        nh.getParam("costmap_node/costmap/resolution",grid_resolution_);
-        nh.getParam("planner/grid_connections",grid_connections_);
-        //nh.getParam("planner/goal",goal);
-        //nh.getParam("planner/start",start);
-        //ROS_INFO("Got parameters");
-        //std::cout<<goal[0]<<goal[1]<<std::endl;
 
-    }
-    else{
-        ROS_ERROR("Did not find parameters");
-    }
+GlobalPlanner::GlobalPlanner(){
+
+    _loadParams();
+    // setup Occupancy grid subscriber
+    _occupancyGridSubscriber = _nh.subscribe(
+                                "/move_base/global_costmap/costmap", 1, 
+                                &GlobalPlanner::_occupancyGridCallback, this);
+
     
-    grid_size_ /= grid_resolution_;
+    while(!_b_isOccupancyGridImageInitialized){
+        ros::spinOnce();
+    }
 
-    nodes_.resize(grid_size_, std::vector<sNode>(grid_size_));
-    std::cout << "Nodes size : " << nodes_.size() << "\n";
-    make_connections_();
-
+    _globalPlannerAStar = std::make_unique<AStar>(_occupancyGridImage);
+    _globalPlannerAStar->setParams(_gridConnections, _obstacleThreshold);
 }
 
-/* Pass in the start and goal array to the A* planner class through this function */
-void GlobalPlanner::setTargets(float start_pt[2] , float goal_pt[2]){
-    ROS_INFO("Set Targets");
 
-    current_ = std::vector<float>{start_pt[0], start_pt[1]};
-    goal_ = std::vector<float>{goal_pt[0], goal_pt[1]};
 
-}
 
-void GlobalPlanner::get_start_end_nodes(){
-    ROS_INFO("Get Start End Nodes");
 
-    std::cout << current_[0] << "\n";
+GlobalPlanner::GlobalPlanner(ros::NodeHandle& nh) : _nh(nh){
 
-    std::cout << "Map x,y = " << map_x_ << " " << map_y_ << "\n";
-    std::cout << "Grid size = " << grid_size_ << "\n";
-    std::cout << "Grid Resol = " << grid_resolution_ << "\n";
-    std::cout << "Grid Connec = " << grid_connections_ << "\n";
+    _loadParams();
+    // setup Occupancy grid subscriber
+    _occupancyGridSubscriber = _nh.subscribe(
+                                "/move_base/global_costmap/costmap", 1, 
+                                &GlobalPlanner::_occupancyGridCallback, this);
 
-    int start_node_i = floor((current_[0] - map_x_)/ grid_resolution_);
-    int start_node_j = floor((current_[0] - map_y_)/ grid_resolution_);
-
-    int goal_node_i = floor((goal_[0]-map_x_)/grid_resolution_);
-    int goal_node_j = floor((goal_[1]-map_y_)/grid_resolution_);
-
-    nodeStart_ = &nodes_[start_node_i][start_node_j];
-    nodeEnd_ = &nodes_[goal_node_i][goal_node_j];
     
-    std::cout<<"start=> x: " << current_[0] << " y: " << current_[1] << std::endl;
-    std::cout<<"start=> i: " << start_node_i << " j: " << start_node_j << std::endl;
-    std::cout<<"goal => x: " << goal_[0] << " y: " << goal_[1] << std::endl;
-    std::cout<<"goal => i: " << goal_node_i << " j: " << goal_node_j << std::endl;
+    // Using costmap params decide which algorithm is GlobalPlanner : {A*, RRT*}
+    //{TODO}
 
-}
+    // using if-else logic create the instance of global planner
+    //{TODO}
 
-void GlobalPlanner::make_connections_(){
-
-    ROS_INFO("Make Connections");
-
-    ROS_INFO("finding neighbours of nodes");
-
-    for(int i=0;i<grid_size_;i++){
-        for(int j=0; j<grid_size_; j++){
-
-        // 4-connected grid
-        if (i>0)
-            nodes_[i][j].vecNeighbours.push_back(&nodes_[i-1][j+0]);
-        if (i<grid_size_)
-            nodes_[i][j].vecNeighbours.push_back(&nodes_[i+1][j+0]);
-        if (j>0)
-            nodes_[i][j].vecNeighbours.push_back(&nodes_[i+0][j-1]);
-        if (j<grid_size_)
-            nodes_[i][j].vecNeighbours.push_back(&nodes_[i+0][j+1]);
-
-        if(grid_connections_ == 8){
-            // 8-connected grid
-            if (i>0 && j>0)
-            nodes_[i][j].vecNeighbours.push_back(&nodes_[i-1][j-1]);
-            if (i<grid_size_ && j>0)
-            nodes_[i][j].vecNeighbours.push_back(&nodes_[i+1][j-1]);
-            if (i>0 && j<grid_size_)
-            nodes_[i][j].vecNeighbours.push_back(&nodes_[i-1][j+1]);
-            if (j<grid_size_ && j<grid_size_)
-            nodes_[i][j].vecNeighbours.push_back(&nodes_[i+1][j+1]);
-            }
-        }
+    while(!_b_isOccupancyGridImageInitialized){
+        ros::spinOnce();
     }
 
-    ROS_INFO("Found neighbours");
-}
-
-bool GlobalPlanner::solve_astar(){
-
-    ROS_INFO("Solve astar started");
-
-    get_start_end_nodes();
-    std::cout<<"start=> x: " << nodeStart_->x << " y: " << nodeStart_->y << std::endl;
-    std::cout<<"end=> x: " << nodeEnd_->x << " y: " << nodeEnd_->y << std::endl;
-
-
-
-    // Set default value for all nodes
-    for(int x=0;x < grid_size_;x++){
-        for(int y=0; y<grid_size_;y++){
-            nodes_[x][y].bVisited = false;
-            nodes_[x][y].fGlobalGoal = INFINITY;
-            nodes_[x][y].fLocalGoal = INFINITY;
-            nodes_[x][y].parent = nullptr; //no parents
-
-        }
-
-    }
-
-    auto distance = [](sNode* a, sNode* b){
-        return sqrtf((a->x - b->x)*(a->x - b->x) + (a->y - b->y)*(a->y - b->y));
-    };
-
-    auto heuristic = [distance](sNode* a, sNode* b){
-        return distance(a,b);
-    };
-    //std::cout<<"setting up starting conditions"<<std::endl;
-    //Setup starting conditions
-    sNode *nodeCurrent = nodeStart_;
-    nodeStart_->fLocalGoal = 0.0f;
-    nodeStart_->fGlobalGoal = heuristic(nodeStart_,nodeEnd_);
-
-    // Add start node to not tested list - this will ensure it gets tested.
-    // As the algorithm progresses, newly discovered nodes get added to this
-    // list, and will themselves be tested later
-
-    std::list<sNode*> listNotTestedNodes;
-    listNotTestedNodes.push_back(nodeStart_);
-    //ROS_INFO("starting node pushed");
-    // if the not tested list contains nodes, there may be better paths
-    // which have not yet been explored. However, we will also stop
-    // searching when we reach the target - there may well be better
-    // paths but this one will do - it wont be the longest.
-
-    //std::cout<<"Finding out neighbours and starting"<<std::endl;
-    while(!listNotTestedNodes.empty() && nodeCurrent!=nodeEnd_)
-    {
-         // Find absolutely shortest path // && nodeCurrent != nodeEnd)
-        // Sort Untested nodes by global goal, so lowest is first
-        listNotTestedNodes.sort([](const sNode* lhs,const sNode* rhs)
-        {return lhs->fGlobalGoal < rhs->fGlobalGoal;}
-        );
-
-
-        // Front of listNotTestedNodes is potentially the lowest distance node. Our
-      // list may also contain nodes that have been visited, so ditch these...
-        while(!listNotTestedNodes.empty() && listNotTestedNodes.front()->bVisited)
-            listNotTestedNodes.pop_front();
-
-        // ...or abort because there are no valid nodes left to test
-        if(listNotTestedNodes.empty())
-         break;
-
-        nodeCurrent = listNotTestedNodes.front();
-        nodeCurrent->bVisited = true; // we only express a node once
-
-        //Check for the node's neighbours...
-        for(auto nodeNeighbour : nodeCurrent->vecNeighbours)
-        {
-            // ... and only if the neighbour is not visited and is
-            // not an obstacle, add it to NotTested List
-
-            if(!nodeNeighbour->bVisited && nodeNeighbour->bObstacle == 0)
-                listNotTestedNodes.push_back(nodeNeighbour);
-
-            // Calculate the neighbours potential lowest parent distance
-            float fPossiblyLowerGoal = nodeCurrent->fLocalGoal + distance(nodeCurrent,nodeNeighbour);
-
-            // If choosing to path through this node is a lower distance than what
-            // the neighbour currently has set, update the neighbour to use this node
-            // as the path source, and set its distance scores as necessary
-
-            if(fPossiblyLowerGoal < nodeNeighbour->fLocalGoal)
-            {
-                nodeNeighbour->parent = nodeCurrent;
-                nodeNeighbour->fLocalGoal = fPossiblyLowerGoal;
-            }
-
-           // The best path length to the neighbour being tested has changed, so
-          // update the neighbour's score. The heuristic is used to globally bias
-          // the path algorithm, so it knows if its getting better or worse. At some
-          // point the algo will realise this path is worse and abandon it, and then go
-          // and search along the next best path.
-
-          nodeNeighbour->fGlobalGoal = nodeNeighbour->fLocalGoal + heuristic(nodeNeighbour,nodeEnd_);
-
-
-        }
-
-
-    }
-
-    if(nodeCurrent == nodeEnd_){
-        ROS_INFO("Found path to Goal");
-        return true;
-    }
-    else if(listNotTestedNodes.empty()){
-        ROS_ERROR("List got empty");
-        return false;
-    }
-
-    //std::cout<< nodeEnd->parent<<std::endl;
-    return true;
-
-
-
-}
-
-void GlobalPlanner::printPath(){
-    ROS_INFO("printPath");
-
-    std::cout<< "-----------------------------"<< std::endl;
-
-    for(auto state : path_msg_.traj)
-    {
-        std::cout<<" x: "<<state.x<<" y: "<<state.y<<std::endl;;
-        // Set next node to this node's parent
-        // p = p->parent;
-    }
-
-    std::cout<< "-----------------------------"<<std::endl;
-}
-
-void GlobalPlanner::getPath(){
-    ROS_INFO("Get Path");
-
-    sNode *p = nodeEnd_->parent;
-
-    hierarchical_motion_planner::State state_msg;
-    path_msg_.traj.clear();
-
-    state_msg.x = goal_[0];
-    state_msg.y = goal_[1];
-    path_msg_.traj.insert(path_msg_.traj.begin(), state_msg);
-   // std::cout<<p->parent<<std::endl;
-
-   while (p->parent != nullptr){
-       state_msg.x = p->x;
-       state_msg.y = p->y;
-
-       path_msg_.traj.insert(path_msg_.traj.begin(),state_msg);
-
-       //Set next node to this node's parent
-
-       p=p->parent;
-   }
-
-   //planning_done = true;
+    _globalPlannerAStar = std::make_unique<AStar>(_occupancyGridImage);
+    _globalPlannerAStar->setParams(_gridConnections, _obstacleThreshold);
 }
 
 
 
-void GlobalPlanner::publishPath(){
-    ROS_INFO("Publishing path");
-    if(!(path_msg_.traj).empty())
-    {
-        printPath();
-        pub_path_.publish(path_msg_);
-    }
-    else
-        ROS_ERROR("Path not Found  !!! ");
-}
 
 
-void GlobalPlanner::convertToStack()
-{
-    int length_path=(path_msg_.traj).size();
-      for(int i=length_path-1;i>=0;i--)
-      {
-          path_found_.push((path_msg_.traj)[i]);
-          //std::cout<<" x: "<<state.x<<" y: "<<state.y<<std::endl;
-          //length=length+1;
-          // Set next node to this node's parent
-          // p = p->parent;
-      }
-    printStackPath(path_found_);
-
+GlobalPlanner::~GlobalPlanner(){
 
 }
 
-void GlobalPlanner::printStackPath(std::stack<hierarchical_motion_planner::State> path_stk)
-{
-    ROS_INFO("THe size of path is");
-    std::cout<<(path_stk).size()<<std::endl;
-    ROS_INFO("The stack of path is");
-      while(!path_stk.empty())
-      {
-        hierarchical_motion_planner::State state_temp;
-        state_temp=path_stk.top();
-        std::cout<<"state_temp.x : "<<state_temp.x<<" state_temp.y : "<<state_temp.y<<std::endl;
-        path_stk.pop();
-      }
-      b_planning_done_ = true;
-}
-
-
-stack<hierarchical_motion_planner::State> GlobalPlanner::start_astar()
-{
-    ROS_INFO("Starting A star");
-    ros::NodeHandle n;
-
-    //Sensing sensing(n,current, goal);
-
-    ros::Subscriber sub_costmap = n.subscribe("/costmap_node/costmap/costmap",1,&GlobalPlanner::costmapCb_,this);
-    ros::Subscriber subs_odom = n.subscribe("/odom",1, &GlobalPlanner::odomCb_,this);
-    ros::Subscriber S = n.subscribe("/gazebo/model_states",1, &GlobalPlanner::gazeboModelStateCB, this);
-
-    int PLANNING_FREQ = 1;
-
-    n.getParam("planner/planning_freq", PLANNING_FREQ);
-
-    ros::Rate loop_rate(100000000);
-    int i=0;
-
-    if(b_is_occ_map_initialized){
-        ROS_INFO("Occ Grid Topic recvd");
-        while(ros::ok() and (!b_planning_done_))
-        {
-            i++;
-            b_planning_done_ = false;
-            ros::spinOnce();
-            //sensing.publishPath();
-            ROS_INFO(" i = [%d]",i);
-            ROS_INFO ("Here will run only after occ grid is recv ");
-            loop_rate.sleep();
-            if(i > 5)
-            {
-                break;
-            }
-
-            std::cout<<" length of path found in astar : "<<(this->path_msg_.traj).size() << std::endl;
-            //ros::Duration(1000).sleep();
-            // }
-
-        }
-    }
-    else{
-        while(!b_is_occ_map_initialized){
-            ROS_INFO("waiting for occ grid to be active");
-            ros::spinOnce();
-            ros::Duration(1.0).sleep();
-        }
-    }
-
-
-    std::cout<<"Length of path in Astar : "<<(this->path_found_).size()<<std::endl;
-    ROS_INFO("Finished A Star Function");
-    return this->path_found_;
-
-}
-
-/*ROS Call Back Functions*/
-
-void GlobalPlanner::odomCb_(nav_msgs::Odometry::ConstPtr msg)
-{
-    //ROS_INFO("Getting the current position");
-    current_[0] = msg->pose.pose.position.x;
-    current_[1] = msg->pose.pose.position.y;
-    std::cout <<" current x : "<<current_[0]<<"current y : "<<current_[1]<<std::endl;
-}
-
-
-void GlobalPlanner::costmapCb_(const nav_msgs::OccupancyGridConstPtr grid)
-{
-    ROS_INFO("Costmap callback");
-    grid_resolution_ = grid->info.resolution;
-
-    //local map location in odom frame (fixed)
-
-    map_x_ = grid->info.origin.position.x;
-    map_y_ = grid->info.origin.position.y;
-    std::cout << "Setting up costmaps from call back\n";
-    std::cout << "map_x_ = " << map_x_ << "\n";
-    std::cout << "map_y_ = " << map_y_ << "\n";
-    std::cout << "grid_resol = " << grid_resolution_ << "\n";
-    auto map = grid->data;
-
-    //Define global nodes positions in terms of x and y
-
-    for(int i {0}; i<grid_size_;i++){
-        for(int j {0}; j<grid_size_;j++){
-
-            nodes_[i][j].x = map_x_ + i*grid_resolution_ + grid_resolution_/2;
-            nodes_[i][j].y = map_y_ + j*grid_resolution_ + grid_resolution_/2;
-
-            //Updating obstacle information
-            if((int) map[grid_size_*j+i] > 5){ // obstacle =100
-                nodes_[i][j].bObstacle = true;
-                //std::cout<<"X : "<<nodes_[i][j].x<<" Y : "<<nodes_[i][j].y<<std::endl;
-            }
-            else
-                nodes_[i][j].bObstacle = false;
-        }
-    }
-
-    /*bool b_GotPath = solve_astar();
-    if(b_GotPath){
-        ROS_INFO(" Got Path !!");
-        getPath();
-        convertToStack();
-        //printPath();
-    }
-    else
-        ROS_ERROR("A Start failed !! ");*/
-
-    b_is_occ_map_initialized = true;
-}
 
 
 
-void GlobalPlanner::gazeboModelStateCB(const gazebo_msgs::ModelStates::ConstPtr& ptr){
-    int robot_index = (ptr->name).size()-1;
-    double robo_x = ((ptr->pose)[robot_index]).position.x;
-    double robo_y = (ptr->pose)[robot_index].position.y;
+/* Gets the current robot position from ROS */
+void GlobalPlanner::_getCurrentRobotPosition() {
 
-    if(b_is_occ_map_initialized){
-
-        int curr_node_i = floor((robo_x - map_x_)/ grid_resolution_);
-        int curr_node_j = floor((robo_y - map_y_)/ grid_resolution_);
-        std::cout << "=======================\n";
-        std::cout << "From gazeboModelStateCB\n";
-        std::cout << "robot_x = " << robo_x << "\n";
-        std::cout << "robot_y = " << robo_y << "\n";
-        std::cout << "map_x_ = " << map_x_ << "\n";
-        std::cout << "map_y_ = " << map_y_ << "\n";
-        std::cout << "grid_resol = " << grid_resolution_ << "\n";
-        std::cout << "Robot Current Node => i: " << curr_node_i << " j: " <<  curr_node_j << std::endl;
-        std::cout << "=======================\n";
-    }
-    else{
-        std::cout << " Occ Grid Not yet up\n";
-    }
-}
-
-
- int main(int argc, char **argv){
-
-     ros::init(argc,argv, "listener");
-     ros::NodeHandle nh;
-
-     GlobalPlanner globalplanner(nh);
-     //ros::Subscriber sub_costmap = nh.subscribe("/costmap_node/costmap/costmap",1,&Sensing::costmapCb,&sensing);
-     //ros::Subscriber subs_odom = nh.subscribe("/odom",1, &Sensing::odomCb,&sensing);
-
-     int PLANNING_FREQ = 1;
-
-     float start[2] {0.0f, 0.0f};
-     float end[2] {3.0f, 3.0f}; 
-     globalplanner.setTargets(start, end);
-     globalplanner.get_start_end_nodes();
-     
+    ros::Subscriber _odomSub = _nh.subscribe("/odom", 1, 
+                                    &GlobalPlanner::_odomCallback, this);
     
-     auto stK = globalplanner.start_astar();
-     
+    // wait till callback is setup
+    while(!_b_isOdomCallbackInitialized){
+        ros::spinOnce();
+    }
+}
 
-     
-     /*nh.getParam("planner/planning_freq", PLANNING_FREQ);
 
-     ros::Rate loop_rate(PLANNING_FREQ);
-     int i=0;
-     while(ros::ok())
-     {
-         i++;
-         ros::spinOnce();
-         globalplanner.publishPath();
 
-         loop_rate.sleep();
-         // if(i > 1){
-         // ros::Duration(1000).sleep();
-         // }
-     }*/
 
-     return 0;
- }
+/* Odometry callback function: extracts robot's pose */
+void GlobalPlanner::_odomCallback(const nav_msgs::Odometry::ConstPtr& odometry){
+
+    std::cout << " Received Odom callback\n";
+    double x = odometry->pose.pose.position.x;
+    double y = odometry->pose.pose.position.y;
+
+    _startPos_XY.clear();
+    _startPos_XY = std::vector<double>{x,y};
+    
+    _b_isOdomCallbackInitialized = true;
+}
+
+
+
+
+/* initializes start and goal positions */
+void GlobalPlanner::setGoal(std::vector<double> goal) {
+
+    // set start point
+    _getCurrentRobotPosition();
+
+    // set goal point
+    _goalPos_XY = goal;
+
+
+    while(!_b_isOccupancyGridImageInitialized){
+        ros::Duration(1).sleep();
+    }
+
+    // convert start and goal from m to pixels
+    _initializeStartAndGoalInPixel();
+
+
+    ROS_INFO_STREAM( _startPos_IJ[0] << " " << _startPos_IJ[1] << " Pix: " << (int)_occupancyGridImage.at<uchar>(_startPos_IJ[0],_startPos_IJ[1]) );
+    ROS_INFO_STREAM( _goalPos_IJ[0] << " " << _goalPos_IJ[1] << " Pix : " << (int)_occupancyGridImage.at<uchar>(_goalPos_IJ[0],_goalPos_IJ[1]) );
+
+    // pass the start and goal pixels to planning algorithm
+    _globalPlannerAStar->setStartAndGoalPixels(_startPos_IJ, _goalPos_IJ);
+}
+
+
+
+
+/* Converts an std::vector point into eigen::vector3d object */
+template <typename T>
+Eigen::Vector3d GlobalPlanner::_getEigenVector3Point(const std::vector<T>& point){
+
+    if(point.size() != 2)
+    {
+        ROS_ERROR( "GLOBAL_PLANNER.cpp : Received a vector of size 3 when expected size was 2 \n" );
+        exit(0); 
+    }
+
+    Eigen::Vector3d eigenPoint;
+    eigenPoint << point[0] , point[1] , (T)1;
+    return eigenPoint;
+}
+
+
+
+
+/* Converts an eigen::Vector3d point into an std::vector object */
+template < typename T >
+std::vector<T> GlobalPlanner::_getSTDVector3Point(Eigen::Vector3d& eigenPoint){
+
+    std::vector<T> point{(T)eigenPoint[0], (T)eigenPoint[1]};
+    return point;
+}
+
+
+
+
+
+/* Overloads / operator to perform vector / scalar division */
+template<typename T1, typename T2>
+std::vector<T1> operator/(const std::vector<T1>& vect, const T2& scalar){
+    
+    int size = vect.size();
+
+    std::vector<T1> outputVector(size, (T2)0);
+    
+    for(int i=0; i<size; i++){
+        outputVector[i] = vect[i] / scalar;
+    }
+
+    return outputVector;
+}
+
+
+
+
+
+/* Overloads * operator to perform vector * scalar multiplication */
+template<typename T1, typename T2>
+std::vector<T1> operator*(const std::vector<T1>& vect, const T2& scalar){
+    
+    int size = vect.size();
+
+    std::vector<T1> outputVector(size, (T2)0);
+    
+    for(int i=0; i<size; i++){
+        outputVector[i] = vect[i] * scalar;
+    }
+
+    return outputVector;
+}
+
+
+
+
+/* Initialize boundary points into pixel coordinates */
+void GlobalPlanner::_initializeStartAndGoalInPixel(){
+
+    // start pixel
+    _startPos_IJ.reserve(2);
+
+    Eigen::Vector3d pixelStartPointInWorldFrame = _getEigenVector3Point(_startPos_XY/_costmapResolution);
+
+    Eigen::Vector3d pixelStartPointInImageFrame = _convertFromWorldFrame(pixelStartPointInWorldFrame);       
+
+    _startPos_IJ = _getSTDVector3Point<int>(pixelStartPointInImageFrame);
+
+    std::cout << " Start Coords : " << _startPos_IJ[0] << " " << _startPos_IJ[1] << "\n";
+
+
+    // goal pixel
+    _goalPos_IJ.reserve(2);
+
+    Eigen::Vector3d pixelGoalPointInWorldFrame = _getEigenVector3Point(_goalPos_XY/_costmapResolution);
+
+    Eigen::Vector3d pixelGoalPointInImageFrame = _convertFromWorldFrame(pixelGoalPointInWorldFrame);
+
+    _goalPos_IJ = _getSTDVector3Point<int>(pixelGoalPointInImageFrame);
+
+    std::cout << " Goal Coords : " << _goalPos_IJ[0] << " " << _goalPos_IJ[1] << "\n";
+
+
+    // checking if start and goal pixels are within bounds
+    bool isStartPointTooCloseToObstacle = (int)_occupancyGridImage.at<uchar>(_startPos_IJ[0],_startPos_IJ[1])>10;
+    bool isGoalPointTooCloseToObstacle = (int)_occupancyGridImage.at<uchar>(_goalPos_IJ[0],_goalPos_IJ[1])>10;
+
+    if(isStartPointTooCloseToObstacle ){
+        
+        ROS_ERROR("The current start  position is very close to the obstacle, please select a new one");
+        exit(0);
+    }
+    if(isGoalPointTooCloseToObstacle ){
+        
+        ROS_ERROR("The current goal  position is very close to the obstacle, please select a new one");
+        exit(0);
+    }
+
+}
+
+
+
+
+
+/* Converts the occupancy callback message into 2d CV::Mat based grid */
+void GlobalPlanner::_occupancyGridCallback(const nav_msgs::OccupancyGrid::ConstPtr& grid)  {
+
+    // get grid parameters
+    int size = (grid->data).size();
+
+
+    int numRows = grid->info.height;
+    int numCols = grid->info.width;
+
+
+    // set member variables
+    _costmapSize = numRows;
+    _costmapOriginX = grid->info.origin.position.x;
+    _costmapOriginY = grid->info.origin.position.y;
+    _costmapResolution = grid->info.resolution;
+
+
+    // setup blank image
+    _occupancyGridImage = cv::Mat(numRows, numCols, CV_8UC1, cv::Scalar(255));
+
+   
+
+    // fillup the image
+    for (int k=0; k<size; k++){
+        auto intensity = (grid->data[k]) * 255 / 100;
+        _occupancyGridImage.at<uchar>(numCols - 1 - k % numCols , numRows - 1 - k / numCols) = intensity;
+    }
+
+    // cv::circle(mapImg, cv::Point(numCols - 1 - 147455 % numCols , numRows - 1 - 147455 / numCols), 2, cv::Scalar(0,0,255), -1);
+
+    if(_b_resizeGrid)
+        _resizeGrid();
+
+    _b_isOccupancyGridImageInitialized = true;
+
+
+    // initialize the transformation matrix from Gazebo's world to opencv image frame
+    _initializeTransformationMatrix();
+
+
+    // display the image
+    // displayGlobalGrid();
+}
+
+
+
+
+
+/* Loads the rosparams for global planner */
+void GlobalPlanner::_loadParams(){
+
+    while(_globalPlannerName=="unknown"){
+        _nh.getParam("robot_info/planner_config/global_planner", _globalPlannerName);
+        _nh.getParam("robot_info/planner_config/global_planner_config/grid_connections", _gridConnections);
+        _nh.getParam("robot_info/planner_config/global_planner_config/resize_grid", _b_resizeGrid);
+        _nh.getParam("robot_info/planner_config/global_planner_config/grid_size", _gridSize);
+        _nh.getParam("robot_info/planner_config/global_planner_config/obstacle_threshold", _obstacleThreshold);
+        ros::Duration(0.5).sleep();
+    }
+}
+
+
+
+
+
+/* Initialize the transformation matrix from Gazebo's world frame to opencv image frame */
+void GlobalPlanner::_initializeTransformationMatrix(){
+
+
+    // origin with effect of resolution
+    int worldOriginInPixelUnitsX = _costmapOriginX/_costmapResolution;
+    int worldOriginInPixelUnitsY = _costmapOriginY/_costmapResolution;
+
+
+    // Transform (in pixel coords) from world origin to Rviz origin (image's bottom right corner)
+    Eigen::Matrix3d T_World_RVIZ ;
+    T_World_RVIZ << 1 , 0, worldOriginInPixelUnitsX,
+                    0,  1, worldOriginInPixelUnitsY, 
+                    0,  0,                        1;
+
+
+    // Transform (in pixel coords) from Rviz origin( image's bottom right corner) to OpenCV's image frame (top left corner with inverted axes)
+    Eigen::Matrix3d T_RVIZ_Image;
+    T_RVIZ_Image << -1 , 0, _costmapSize,
+                     0, -1, _costmapSize,
+                     0,   0,           1;
+
+
+    // T02 = T01 * T12
+    _T_World_Image = T_World_RVIZ * T_RVIZ_Image;
+
+
+}
+
+
+
+
+/* converts a point from openCV frame to world frame */
+Eigen::Vector3d GlobalPlanner::_convertToWorldFrame(Eigen::Vector3d pointInImageFrame){
+    return _T_World_Image * pointInImageFrame;
+}
+
+
+
+
+
+/* Converts a point from world frame to  frame */
+Eigen::Vector3d GlobalPlanner::_convertFromWorldFrame(Eigen::Vector3d pointInWorldFrame){
+    return _T_World_Image.inverse() * pointInWorldFrame;
+}
+
+
+
+
+/* Displays the global grid */
+void GlobalPlanner::displayGlobalGrid(){
+
+    // wait till callbacks are initialized
+    while(!_b_isOccupancyGridImageInitialized && ros::ok()){
+        ROS_WARN("OccupancyGrid Not Yet initialized\n");
+        ros::Duration(1).sleep();
+    }
+
+
+    std::cout << "Image rows : " << _occupancyGridImage.rows << "\n";
+
+    // error if image is empty
+    if(!_occupancyGridImage.data){
+        ROS_ERROR("Could not load the map image");
+        return;
+    }
+
+
+    // display image
+    cv::namedWindow(_windowName , cv::WINDOW_AUTOSIZE);
+    cv::imshow(_windowName, _occupancyGridImage);
+    auto k = cv::waitKey(1000);                     // change the constant if you want to see image for long time 
+
+    // destroy image windows
+    // if(k==27){
+        cv::destroyAllWindows();
+        // exit(0);
+    // }
+
+    // cv::imwrite("/home/kshah/global.jpg", _occupancyGridImage);
+}
+
+
+
+
+/* Calls planning algorithm's makePlan function and receives a vector<vector<int>> path*/
+std::vector<std::vector<double>> GlobalPlanner::makePlan(){
+
+    std::vector<std::vector<int>> bestPath = _globalPlannerAStar->makePlan();
+
+    _extractBestPath(bestPath);
+
+    return _bestPathGlobal;
+}
+
+
+
+
+/* Converts the global path from pixel coords to meters */
+void GlobalPlanner::_extractBestPath(const std::vector<std::vector<int>>& bestPath){
+
+    
+    int size = bestPath.size();
+    _bestPathGlobal.reserve(size);
+
+
+    for(int i=0; i<size; i++){
+        // convert the vector<i,j> into eigen point & transform it into world frame from pixel frame
+        Eigen::Vector3d bestEigenPointInPixelCoords = _convertToWorldFrame(
+                                            _getEigenVector3Point(bestPath[i] / 1.0f ));
+
+
+        // after getting it into req resolution, convert it into std::vector<double>(x,y) point in meters
+        _bestPathGlobal.emplace_back(
+                        _getSTDVector3Point<double>(
+                            bestEigenPointInPixelCoords) * _costmapResolution );
+    }
+
+}
+
+
+
+
+
+/* Resize grid if user resolution is different from RVIZ costmap resolution*/
+void GlobalPlanner::_resizeGrid(){
+    auto line_no = __LINE__+2;
+    try{
+        cv::resize(_occupancyGridImage, _occupancyGridImage, cv::Size(_gridSize,_gridSize));
+    }
+    catch(std::exception& e){
+        ROS_ERROR( "Error resizing the image");
+        std::cerr << "Exception reference : " << e.what();
+        std::cerr << "Error on line " << line_no << " of Global Planner \n\n";
+    }
+
+    // update the costmap resolution & costmap size
+    _costmapResolution = _costmapSize * _costmapResolution / _gridSize;
+    
+    _costmapSize = _gridSize;        // as set by user in hmp_planner_params.yaml
+}
+
+
+
+
+
+/*
+    API:
+    
+    constructor+ nh
+    setGoal
+    makePlan
+    
+*/

@@ -1,11 +1,11 @@
 <launch>
 
 	  <!-- Load the planner.yaml-->
-    	  <rosparam file="$(find hierarchical_motion_planner)/config/planner.yaml" command="load" ns="robot_info/" />
+    	  <rosparam file="$(find hierarchical_motion_planner)/config/hmp_planner_params.yaml" command="load" ns="robot_info/" />
 
 	  <!-- Run the costmap node -->
 	  <node name="costmap_node" pkg="costmap_2d" type="costmap_2d_node">
-	    <rosparam file="$(find hierarchical_motion_planner)/config/costmap_params.yaml" command="load" /> 
+	    <!--rosparam file="$(find hierarchical_motion_planner)/config/costmap_params.yaml" command="load" /--> 
 	  </node>
 	
 </launch>

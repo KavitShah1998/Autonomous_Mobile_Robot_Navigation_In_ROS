@@ -1,12 +1,12 @@
 <!-- -->
 <launch>
   <arg name="model" default="$(env TURTLEBOT3_MODEL)" doc="model type [burger, waffle, waffle_pi]"/>
-  <arg name="x_pos" default="0.0"/>
-  <arg name="y_pos" default="0.0"/>
+  <arg name="x_pos" default="-3.0"/>
+  <arg name="y_pos" default="4.0"/>
   <arg name="z_pos" default="0.0"/>
   <arg name="roll" default="0.0"/>
   <arg name="pitch" default="0.0"/>
-  <arg name="yaw" default="0.0"/>
+  <arg name="yaw" default="-1.570"/>
   <arg name="slam_methods" default="gmapping"/>
   <arg name="move_forward_only" default="false"/>
   <arg name="map_file" default="$(find hierarchical_motion_planner)/maps/world_hmp.yaml"/>
@@ -25,7 +25,7 @@
 
   <!--node name="robot_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher" respawn="false" output="screen"/-->
 
-  <node pkg="gazebo_ros" type="spawn_model" name="spawn_urdf"  args="-urdf -model turtlebot3_$(arg model) -x $(arg x_pos) -y $(arg y_pos) -z $(arg z_pos) -param robot_description" />
+  <node pkg="gazebo_ros" type="spawn_model" name="spawn_urdf"  args="-urdf -model turtlebot3_$(arg model) -x $(arg x_pos) -y $(arg y_pos) -z $(arg z_pos) -R $(arg roll) -P $(arg pitch) -Y $(arg yaw) -param robot_description" />
 
   <!-- Load Turtlebot3 Navigation -->
   <include file="$(find turtlebot3_navigation)/launch/turtlebot3_navigation.launch">
@@ -37,8 +37,5 @@
     <arg name="initial_pose_a" value="$(arg yaw)"/>
     <arg name="map_file" value="$(arg map_file)"/>  
   </include>
-
-  <!-- Load Params & Costmaps -->
-  <include file="$(find hierarchical_motion_planner)/launch/load_yaml.launch"> </include>
 
 </launch>

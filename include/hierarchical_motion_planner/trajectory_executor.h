@@ -3,7 +3,7 @@
 
 # include <vector>
 # include <string>
-# include "hierarchical_motion_planner/controller_pid.h"
+# include "hierarchical_motion_planner/controller.h"
 
 class TrajectoryExecutor{
 
@@ -28,7 +28,7 @@ class TrajectoryExecutor{
          * 
          * \param      path - the trajectory to be executed
 		 */
-        void setPath(std::vector<geometry_msgs::Point>& path);
+        void setPath(std::vector<geometry_msgs::Point> path);
 
 
         /**

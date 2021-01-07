@@ -1,0 +1,18 @@
+planner_config:
+
+    global_planner: A*
+    local_planner: RRT*
+    controller: set-point_PID
+
+
+    global_planner_config:
+        grid_size: 100
+        resize_grid: false
+        grid_connections: 8
+        obstacle_threshold: 150
+
+    local_planner_config:
+        grid_size: 100
+        resize_grid: false
+        grid_connections: 4
+        obstacle_threshold: 150

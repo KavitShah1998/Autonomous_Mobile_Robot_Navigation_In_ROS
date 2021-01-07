@@ -1,165 +1,227 @@
-//om
-#ifndef GLOBAL_PLANNER_CPP
-#define GLOBAL_PLANNER_CPP
+// om 
 
-#pragma once
+# pragma once
 
-#include <iostream>
-#include <math.h>
-#include <vector>
-#include <list>
-#include <stack>  
+# include <ros/ros.h>
+# include <nav_msgs/OccupancyGrid.h>
+# include <nav_msgs/Odometry.h>
+# include <opencv2/highgui/highgui.hpp>
+# include <opencv2/imgproc/imgproc.hpp>
 
-// ------------------------------------------------------------------///
-#include <ros/ros.h>
+# include <vector>
+# include <string>
+# include <exception>
+# include <memory>
 
-#include <std_msgs/Bool.h>
-#include <std_msgs/Float32.h>
-#include <std_msgs/String.h>
-
-#include <geometry_msgs/Twist.h>
-#include <geometry_msgs/Point.h>
-#include <geometry_msgs/Pose.h>
-#include <geometry_msgs/Pose2D.h>
-
-#include <nav_msgs/OccupancyGrid.h>
-#include <nav_msgs/Odometry.h>
-#include <nav_msgs/Odometry.h>
-
-#include <sensor_msgs/LaserScan.h>
-
-#include <move_base_msgs/MoveBaseGoal.h>
-#include <move_base_msgs/MoveBaseAction.h>
-
-#include <tf/transform_listener.h>
-#include <tf/transform_datatypes.h>
-
-#include "hierarchical_motion_planner/State.h"
-#include "hierarchical_motion_planner/Trajectory.h"
-
-
-#include <gazebo_msgs/ModelStates.h>
-
-
-/*class GlobalPlanner{
-    public : 
-        
-
-        GlobalPlanner(ros::NodeHandle &nh);  // constructor
-        void costmapCb(const nav_msgs::OccupancyGridConstPtr grid); // Callback for costmap
-        bool solve_astar();
-        void printPath();
-        void getPath();
-        std::stack<hierarchical_motion_planner::State> start_astar();
-        void printPathNodes(std::stack < std::pair<float,float> > path);
-        // void PIDController();
-        // void RobotState();
-
-        struct sNode{
-            bool bObstacle = false;       // Is the node an obstruction?
-            bool bVisited = false;        // Have we searched this node before?
-            float fGlobalGoal;            // Distance to goal so far
-            float fLocalGoal;             // Distance to goal if we took the alternative route
-            float x;                        // Nodes position in 2D space
-            float y;
-
-            std::vector<sNode*> vecNeighbours; // Connections to neighbours
-            sNode* parent;                // Node connecting to this node that offers shortest parent
-        };
-
-  
-    private:
-        double grid_resolution_;
-        int grid_size_;
-        int grid_connections_;
-
-        bool b_planning_done_ = {false};
-
-        std::vector< std::vector<sNode> > nodes_; // initializing map to represent all nodes
-        std::stack < std::pair<float,float> > path_; // store path top: current node, bottom: goal node
-        std::vector< std::pair<float, float>> Vec_path_;
-
-        // Controller variables
-        std::pair<int, int> state_; // Current State
-        std::pair<int, int> prev_state_; // Previous State
-
-        void make_connections_();      // add neighbors to the nodes 
-
-        int node_min_i_{10}, node_min_j_{10};
-        int node_max_i_{14}, node_max_j_{15};
-
-
-};
-*/
+# include <eigen3/Eigen/Dense>
+# include "hierarchical_motion_planner/a_star.h"
 
 class GlobalPlanner{
 
-    public:
-        
-        struct sNode{
-            bool bObstacle = false;
-            bool bVisited = false;
-            float fGlobalGoal;
-            float fLocalGoal;
-            float x;
-            float y;
+public:
 
-            std::vector<sNode*> vecNeighbours;
-            sNode* parent;
-        };
-
-        //GlobalPlanner(ros::NodeHandle &nh,std::vector<float>, std::vector<float>);
-        GlobalPlanner(ros::NodeHandle &nh);
-        GlobalPlanner();
-        
-        void setTargets(float[2], float[2]);
-        std::stack<hierarchical_motion_planner::State> start_astar();
-        bool solve_astar();
-        void printPath();
-        void getPath();
-        void publishPath();
-        void get_start_end_nodes();
-        
-
-    private:
-        double grid_resolution_;
-
-        int grid_size_;
-        int grid_connections_;
-
-        std::vector<float> current_;
-        std::vector<float> goal_;
-
-        float map_x_ {0};
-        float map_y_ {0};
-
-        std::vector< std::vector<sNode> > nodes_;
+    /**
+	 * \brief      default contructor
+	 */
+    GlobalPlanner();
 
 
-        sNode *nodeStart_ {};
-        sNode *nodeEnd_ {};
+    /**
+	 * \brief      parameterized contructor
+     * 
+     * \param     nh - accepts nodehandle for initializing ros 
+     *                  subscriber
+	 */
+    GlobalPlanner(ros::NodeHandle& nh);
 
-        std::vector< std::pair<float,float> > path_;
 
-        ros::Publisher pub_path_;
-        hierarchical_motion_planner::Trajectory path_msg_;
-        std::stack<hierarchical_motion_planner::State> path_found_;
+    /**
+	 * \brief      class destructor 
+	 */
+    ~GlobalPlanner();
 
-        void costmapCb_(const nav_msgs::OccupancyGridConstPtr grid);
-        void odomCb_(nav_msgs::Odometry::ConstPtr msg);
 
-        void init_global_map_();
+    /**
+	 * \brief      sets start and goal positions
+     * 
+     * \param     goal - goal point as a 2 element vector
+	 */
+    void setGoal( std::vector<double> goal);
 
-        void make_connections_();
 
-        bool b_planning_done_ = false;
-        //void printStackPath();
-        void convertToStack();
-        void printStackPath(std::stack<hierarchical_motion_planner::State> path_found);
+    /**
+	 * \brief      displays the global grid
+     *  
+	 */
+    void displayGlobalGrid();
 
-        //temp
-        void gazeboModelStateCB(const gazebo_msgs::ModelStates::ConstPtr& ptr);
-        bool b_is_occ_map_initialized{false};
 
+    /**
+	 * \brief      calls the 'X' algorithm's makePlan function
+     *             and receives a std::vector<int> path
+	 */
+    std::vector<std::vector<double>> makePlan();
+
+
+private:
+
+    // start and goal in m
+    std::vector<double> _startPos_XY;           
+    std::vector<double> _goalPos_XY;
+
+    // start and goal in pixels
+    std::vector<int> _startPos_IJ;
+    std::vector<int> _goalPos_IJ;
+
+    // grid properties set by User in yaml
+    int _gridSize{100};
+    bool _b_resizeGrid{false};
+    float _gridResizeScale{1.0f};
+    int _gridConnections{8};
+    int _obstacleThreshold{150};
+
+    // costmap properties exhibited by RVIZ
+    int _costmapSize{100};
+    double _costmapOriginX{0.0f};
+    double _costmapOriginY{0.0f};
+    double _costmapResolution{0.0f};
+
+    // condition flags to check if subscriber callbacks are initialized
+    bool _b_isOccupancyGridImageInitialized{false};
+    bool _b_isOdomCallbackInitialized{false};
+
+
+    ros::NodeHandle _nh;
+
+    std::string _windowName{"Global Occupancy Grid"};
+
+    cv::Mat _occupancyGridImage;
+
+    ros::Subscriber _occupancyGridSubscriber;
+
+    std::vector<std::vector<double>> _bestPathGlobal;
+
+    // transformation matrix from (Gazebo's) world  frame to OpenCv image frame
+    Eigen::Matrix3d _T_World_Image;           
+
+
+    /* @ USER if you plan to use your planning algorithm, create its unique ptr here*/
+    //Create a Unique Ptr Instance of the User's algorithm
+    std::unique_ptr<AStar> _globalPlannerAStar;
+
+
+    // name of global planner as stated in planner.yaml
+    std::string _globalPlannerName{"unknown"};
+   
+
+    /**
+	 * \brief      gets the current robot position from ROS
+	 */
+    void _getCurrentRobotPosition();
+
+
+    /**
+	 * \brief      odometry callback function, extracts robot's pose
+	 */
+    void _odomCallback(const nav_msgs::Odometry::ConstPtr& odom);
+
+
+    /**
+	 * \brief      converts the occupancy callback message into
+     *             2d CV::Mat based grid 
+     * 
+     * \param     grid - const ptr to nav_msgs::OccupancyGrid 
+     *                   (check ROS API docs)
+	 */
+    void _occupancyGridCallback(const nav_msgs::OccupancyGrid::ConstPtr& grid);
+
+
+    /**
+	 * \brief      loads the rosparams for global planner
+	 */
+    void _loadParams();  
+
+    /**
+	 * \brief      initialize the transformation matrix from Gazebo world
+     *             to opencv image frame
+	 */
+    void _initializeTransformationMatrix();
+
+    /**
+	 * \brief      converts a point from openCV frame to 
+     *             world frame
+     * 
+     * \param      pointInImageFrame is a 2 dimensional point in homogeneous
+     *              system (in OpenCV frame)
+	 */
+    Eigen::Vector3d _convertToWorldFrame(Eigen::Vector3d pointInImageFrame); 
+
+
+    /**
+	 * \brief      converts a point from world frame to 
+     *             openCv frame
+     * 
+     * \param      pointInWorldFrame is a 2 dimensional point in homogeneous
+     *              system (in world frame)
+	 */
+    Eigen::Vector3d _convertFromWorldFrame(Eigen::Vector3d pointInWorldFrame);
+
+
+    /**
+	 * \brief      converts an std::vector point into eigen::vector3d object
+     * 
+     * \param      point - std::vector (i,j) of size 2 representing a point 
+	 */
+    template<typename T>
+    Eigen::Vector3d _getEigenVector3Point(const std::vector<T>& point);
+
+
+    /**
+	 * \brief      converts an eigen::Vector3d point into an std::vector object
+     * 
+     * \param      eigenPoint - eigen::vector3d (i,j,1) representing a point in 
+     *             homogeneous system
+	 */
+    template<typename T>
+    std::vector<T> _getSTDVector3Point(Eigen::Vector3d& eigenPoint);
+
+
+    /**
+	 * \brief      resizes the global grid
+     *  
+	 */
+    void _resizeGrid();
+
+
+    /**
+	 * \brief      initialize boundary points into pixel coordinates
+     */    
+    void _initializeStartAndGoalInPixel();  
+
+    /**
+	 * \brief      converts the global path from pixel coords to meters
+     * 
+     * \param      bestPath - a 2d vector of path points(i,j)
+     */   
+    void _extractBestPath(const std::vector<std::vector<int>>& bestPath);
 };
-#endif
+
+
+
+// Free function
+/**
+ * \brief      overloads / operator to perform vector / scalar division
+ * 
+ * \param      
+ */
+template<typename T1, typename T2>
+std::vector<T1> operator/(const std::vector<T1>& vect, const T2& scalar);
+
+
+/**
+ * \brief      overloads * operator to perform vector * scalar multiplication
+ * 
+ * \param      
+ */
+template<typename T1, typename T2>
+std::vector<T1> operator*(const std::vector<T1>& vect, const T2& scalar);

@@ -27,6 +27,7 @@ find_package(catkin REQUIRED COMPONENTS
   tf
 )
 find_package (OpenCV REQUIRED)
+find_package(Eigen3 REQUIRED)
 
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
@@ -134,6 +135,7 @@ include_directories(
  include
   ${catkin_INCLUDE_DIRS}
   ${OpenCV_INCLUDE_DIRS}
+  ${Eigen3_INCLUDE_DIRS}
 )
 
 ## Declare a C++ library
@@ -221,13 +223,36 @@ include_directories(
 ## Add folders to be run by python nosetests
 # catkin_add_nosetests(test)
 
-add_executable(main_pub_map_odom src/main_pub_map_odom.cpp)
-target_link_libraries(main_pub_map_odom ${catkin_LIBRARIES})
+#################
+## Executables ##
+#################
+
+set(HMP_HEADERS
+	include/hierarchical_motion_planner/a_star.h
+	include/hierarchical_motion_planner/global_planner.h
+	include/hierarchical_motion_planner/controller.h
+	include/hierarchical_motion_planner/trajectory_executor.h
+	include/hierarchical_motion_planner/planning_manager.h)
+
+set(HMP_SOURCES
+	src/a_star.cpp
+	src/global_planner.cpp
+	src/controller.cpp
+	src/trajectory_executor.cpp
+	src/planning_manager.cpp)
+
+
+#add_executable(main_pub_map_odom src/main_pub_map_odom.cpp)
+#target_link_libraries(main_pub_map_odom ${catkin_LIBRARIES})
 
 ## no int main inside global_planner
-#add_executable(global_planner_node src/global_planner.cpp include/hierarchical_motion_planner/global_planner.h)
-#add_dependencies(global_planner_node ${catkin_EXPORTED_TARGETS})
-#target_link_libraries(global_planner_node ${catkin_LIBRARIES})
+add_executable(global_planner_node ${HMP_HEADERS} ${HMP_SOURCES})
+add_dependencies(global_planner_node ${catkin_EXPORTED_TARGETS})
+target_link_libraries(global_planner_node ${catkin_LIBRARIES} ${OpenCV_LIBRARIES} ${Eigen_LIBRARIES})
+
+#add_executable(astar_planner_node src/a_star.cpp include/hierarchical_motion_planner/a_star.h)
+#add_dependencies(astar_planner_node ${catkin_EXPORTED_TARGETS})
+#target_link_libraries(astar_planner_node ${catkin_LIBRARIES} ${OpenCV_LIBRARIES})
 
 
 # executable for LASER_NODE
@@ -237,15 +262,15 @@ target_link_libraries(main_pub_map_odom ${catkin_LIBRARIES})
 
 
 # executable for controller_node
-add_executable(controller_node src/controller.cpp include/hierarchical_motion_planner/controller.h)
-add_dependencies(controller_node ${catkin_EXPORTED_TARGETS})
-target_link_libraries(controller_node ${catkin_LIBRARIES})
+#add_executable(controller_node src/controller.cpp include/hierarchical_motion_planner/controller.h)
+#add_dependencies(controller_node ${catkin_EXPORTED_TARGETS})
+#target_link_libraries(controller_node ${catkin_LIBRARIES})
 
 
 #executable for costmap_debug_node
-add_executable(costmap_debug src/costmap_debug.cpp)
-add_dependencies(costmap_debug ${catkin_EXPORTED_TARGETS})
-target_link_libraries(costmap_debug ${catkin_LIBRARIES}) 
+#add_executable(costmap_debug src/costmap_debug.cpp)
+#add_dependencies(costmap_debug ${catkin_EXPORTED_TARGETS})
+#target_link_libraries(costmap_debug ${catkin_LIBRARIES}) 
 
 
 # No int main in controller

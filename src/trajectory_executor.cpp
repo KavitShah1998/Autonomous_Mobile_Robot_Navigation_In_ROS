@@ -14,7 +14,7 @@ TrajectoryExecutor::~TrajectoryExecutor(){
     delete _controller;
 }
 
-void TrajectoryExecutor::setPath(std::vector<geometry_msgs::Point>& path){
+void TrajectoryExecutor::setPath(std::vector<geometry_msgs::Point> path){
     _path = path;
 }
 
@@ -75,50 +75,5 @@ void TrajectoryExecutor::printPathVector(std::vector<geometry_msgs::Point>& path
     for(int i=0; i<pathSize; i++){
         std::cout << "Goal" << i+1 << " (" << path[i].x << " , " << path[i].y << ")\n";
     }
-}
-
-
-int main(int argc, char** argv){
-
-  ros::init(argc, argv, "trajectory_executor_node");
-
-  ros::NodeHandle nh;
-
-  nh.setParam("/hierarchical_planner/planner", "global");
-  nh.setParam("/hierarchical_planner/is_robot_colliding", false);
-  std::vector<geometry_msgs::Point> path;
-
-  geometry_msgs::Point goal, goal2, goal3, goal4;
-  goal.x = 6.0;
-  goal.y = 3.0;
-  path.push_back(goal);
-
-  goal2.x = 3.0;
-  goal2.y = 6.0;
-  path.push_back(goal2);
-  
-
-  goal3.x = -5.0;
-  goal3.y = 5.0;
-  path.push_back(goal3);
-
-  goal4.x = 0.0;
-  goal4.y = 0.0;
-  path.push_back(goal4);
-
-
-  TrajectoryExecutor trajEx(nh);
-  trajEx.setPath(path);
-  auto finalPath = trajEx.executePath();
-
-  if(!finalPath.size())
-    ROS_INFO("The Robot completed executing the set-point trajectory");
-
-  else
-    ROS_WARN("Obstacle encountered");
-
-  trajEx.printPathVector(finalPath);
-  
-  return 0;
 }
 
