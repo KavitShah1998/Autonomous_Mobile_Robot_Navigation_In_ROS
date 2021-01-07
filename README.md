@@ -25,8 +25,8 @@ This is research code, expect that it changes often and any fitness for a partic
 -->
 
 <p float="left">
-  <img src="/media/hmp_Astar1_9x.gif" width="100" />
-  <img src="/media/hmp_Astar2_9x.gif" width="100" /> 
+  <img src="/media/hmp_Astar1_9x.gif" width="400" />
+  <img src="/media/hmp_Astar2_9x.gif" width="400" /> 
 </p>
 
 
