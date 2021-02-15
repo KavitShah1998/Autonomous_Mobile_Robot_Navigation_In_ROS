@@ -250,6 +250,11 @@ add_executable(global_planner_node ${HMP_HEADERS} ${HMP_SOURCES})
 add_dependencies(global_planner_node ${catkin_EXPORTED_TARGETS})
 target_link_libraries(global_planner_node ${catkin_LIBRARIES} ${OpenCV_LIBRARIES} ${Eigen_LIBRARIES})
 
+
+add_executable(local_planner_node include/hierarchical_motion_planner/a_star.h include/hierarchical_motion_planner/local_planner.h  src/a_star.cpp src/local_planner.cpp)
+add_dependencies(local_planner_node ${catkin_EXPORTED_TARGETS})
+target_link_libraries(local_planner_node ${catkin_LIBRARIES} ${OpenCV_LIBRARIES} ${Eigen_LIBRARIES})
+
 #add_executable(astar_planner_node src/a_star.cpp include/hierarchical_motion_planner/a_star.h)
 #add_dependencies(astar_planner_node ${catkin_EXPORTED_TARGETS})
 #target_link_libraries(astar_planner_node ${catkin_LIBRARIES} ${OpenCV_LIBRARIES})

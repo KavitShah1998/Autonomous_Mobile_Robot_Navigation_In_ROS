@@ -1,0 +1,9 @@
+<!-- -->
+<launch>
+
+  <node pkg="hierarchical_motion_planner" type="local_planner_node" name="local_planner_node"/>
+
+  <!-- Load Params & Costmaps -->
+  <include file="$(find hierarchical_motion_planner)/launch/load_yaml.launch"> </include>
+
+</launch>

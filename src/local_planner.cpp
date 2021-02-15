@@ -1,60 +1,65 @@
 //om
 
-# include "hierarchical_motion_planner/global_planner.h"
+# include "hierarchical_motion_planner/local_planner.h"
 
 
 
 
 
-GlobalPlanner::GlobalPlanner(){
+LocalPlanner::LocalPlanner(){
 
     _loadParams();
+    std::cout << "Started LP \n";
     // setup Occupancy grid subscriber
     _occupancyGridSubscriber = _nh.subscribe(
-                                "/move_base/global_costmap/costmap", 1, 
-                                &GlobalPlanner::_occupancyGridCallback, this);
+                                "/move_base/local_costmap/costmap", 1, 
+                                &LocalPlanner::_occupancyGridCallback, this);
 
     
     while(!_b_isOccupancyGridImageInitialized){
         ros::spinOnce();
     }
 
-    _globalPlannerAStar = std::make_unique<AStar>(_occupancyGridImage);
-    _globalPlannerAStar->setParams(_gridConnections, _obstacleThreshold);
+    std::cout << "Reached A \n"; 
+    _LocalPlannerAStar = std::make_unique<AStar>(_occupancyGridImage);
+    _LocalPlannerAStar->setParams(_gridConnections, _obstacleThreshold);
+    std::cout << "Reached B \n";
 }
 
 
 
 
 
-GlobalPlanner::GlobalPlanner(ros::NodeHandle& nh) : _nh(nh){
+LocalPlanner::LocalPlanner(ros::NodeHandle& nh) : _nh(nh){
+    std::cout << "Started LP \n";
 
     _loadParams();
     // setup Occupancy grid subscriber
     _occupancyGridSubscriber = _nh.subscribe(
-                                "/move_base/global_costmap/costmap", 1, 
-                                &GlobalPlanner::_occupancyGridCallback, this);
+                                "/move_base/local_costmap/costmap", 1, 
+                                &LocalPlanner::_occupancyGridCallback, this);
 
     
-    // Using costmap params decide which algorithm is GlobalPlanner : {A*, RRT*}
+    // Using costmap params decide which algorithm is LocalPlanner : {A*, RRT*}
     //{TODO}
 
-    // using if-else logic create the instance of global planner
+    // using if-else logic create the instance of local planner
     //{TODO}
 
     while(!_b_isOccupancyGridImageInitialized){
         ros::spinOnce();
     }
-
-    _globalPlannerAStar = std::make_unique<AStar>(_occupancyGridImage);
-    _globalPlannerAStar->setParams(_gridConnections, _obstacleThreshold);
+    std::cout << "Reached A \n"; 
+    _LocalPlannerAStar = std::make_unique<AStar>(_occupancyGridImage);
+    _LocalPlannerAStar->setParams(_gridConnections, _obstacleThreshold);
+    std::cout << "Reached B \n";
 }
 
 
 
 
 
-GlobalPlanner::~GlobalPlanner(){
+LocalPlanner::~LocalPlanner(){
 
 }
 
@@ -62,10 +67,10 @@ GlobalPlanner::~GlobalPlanner(){
 
 
 /* Gets the current robot position from ROS */
-void GlobalPlanner::_getCurrentRobotPosition() {
+void LocalPlanner::_getCurrentRobotPosition() {
 
     ros::Subscriber _odomSub = _nh.subscribe("/odom", 1, 
-                                    &GlobalPlanner::_odomCallback, this);
+                                    &LocalPlanner::_odomCallback, this);
     
     // wait till callback is setup
     while(!_b_isOdomCallbackInitialized){
@@ -77,7 +82,7 @@ void GlobalPlanner::_getCurrentRobotPosition() {
 
 
 /* Odometry callback function: extracts robot's pose */
-void GlobalPlanner::_odomCallback(const nav_msgs::Odometry::ConstPtr& odometry){
+void LocalPlanner::_odomCallback(const nav_msgs::Odometry::ConstPtr& odometry){
 
     std::cout << " Received Odom callback\n";
     double x = odometry->pose.pose.position.x;
@@ -93,7 +98,7 @@ void GlobalPlanner::_odomCallback(const nav_msgs::Odometry::ConstPtr& odometry){
 
 
 /* initializes start and goal positions */
-void GlobalPlanner::setGoal(std::vector<double> goal) {
+void LocalPlanner::setGoal(std::vector<double> goal) {
 
     // set start point
     _getCurrentRobotPosition();
@@ -114,7 +119,7 @@ void GlobalPlanner::setGoal(std::vector<double> goal) {
     ROS_INFO_STREAM( _goalPos_IJ[0] << " " << _goalPos_IJ[1] << " Pix : " << (int)_occupancyGridImage.at<uchar>(_goalPos_IJ[0],_goalPos_IJ[1]) );
 
     // pass the start and goal pixels to planning algorithm
-    _globalPlannerAStar->setStartAndGoalPixels(_startPos_IJ, _goalPos_IJ);
+    _LocalPlannerAStar->setStartAndGoalPixels(_startPos_IJ, _goalPos_IJ);
 }
 
 
@@ -122,11 +127,11 @@ void GlobalPlanner::setGoal(std::vector<double> goal) {
 
 /* Converts an std::vector point into eigen::vector3d object */
 template <typename T>
-Eigen::Vector3d GlobalPlanner::_getEigenVector3Point(const std::vector<T>& point){
+Eigen::Vector3d LocalPlanner::_getEigenVector3Point(const std::vector<T>& point){
 
     if(point.size() != 2)
     {
-        ROS_ERROR( "GLOBAL_PLANNER.cpp : Received a vector of size 3 when expected size was 2 \n" );
+        ROS_ERROR( "LOCAL_PLANNER.cpp : Received a vector of size 3 when expected size was 2 \n" );
         exit(0); 
     }
 
@@ -140,7 +145,7 @@ Eigen::Vector3d GlobalPlanner::_getEigenVector3Point(const std::vector<T>& point
 
 /* Converts an eigen::Vector3d point into an std::vector object */
 template < typename T >
-std::vector<T> GlobalPlanner::_getSTDVector3Point(Eigen::Vector3d& eigenPoint){
+std::vector<T> LocalPlanner::_getSTDVectorPoint(Eigen::Vector3d& eigenPoint){
 
     std::vector<T> point{(T)eigenPoint[0], (T)eigenPoint[1]};
     return point;
@@ -188,7 +193,7 @@ std::vector<T1> operator*(const std::vector<T1>& vect, const T2& scalar){
 
 
 /* Initialize boundary points into pixel coordinates */
-void GlobalPlanner::_initializeStartAndGoalInPixel(){
+void LocalPlanner::_initializeStartAndGoalInPixel(){
 
     // start pixel
     _startPos_IJ.reserve(2);
@@ -197,7 +202,7 @@ void GlobalPlanner::_initializeStartAndGoalInPixel(){
 
     Eigen::Vector3d pixelStartPointInImageFrame = _convertFromWorldFrame(pixelStartPointInWorldFrame);       
 
-    _startPos_IJ = _getSTDVector3Point<int>(pixelStartPointInImageFrame);
+    _startPos_IJ = _getSTDVectorPoint<int>(pixelStartPointInImageFrame);
 
     std::cout << " Start Coords : " << _startPos_IJ[0] << " " << _startPos_IJ[1] << "\n";
 
@@ -209,7 +214,7 @@ void GlobalPlanner::_initializeStartAndGoalInPixel(){
 
     Eigen::Vector3d pixelGoalPointInImageFrame = _convertFromWorldFrame(pixelGoalPointInWorldFrame);
 
-    _goalPos_IJ = _getSTDVector3Point<int>(pixelGoalPointInImageFrame);
+    _goalPos_IJ = _getSTDVectorPoint<int>(pixelGoalPointInImageFrame);
 
     std::cout << " Goal Coords : " << _goalPos_IJ[0] << " " << _goalPos_IJ[1] << "\n";
 
@@ -220,12 +225,12 @@ void GlobalPlanner::_initializeStartAndGoalInPixel(){
 
     if(isStartPointTooCloseToObstacle ){
         
-        ROS_ERROR("The current start  position is very close to the obstacle, please select a new one");
+        ROS_ERROR("The current start  position is very close to the obstacle, KUCH TO CHANGE KAR");
         exit(0);
     }
     if(isGoalPointTooCloseToObstacle ){
         
-        ROS_ERROR("The current goal  position is very close to the obstacle, please select a new one");
+        ROS_ERROR("The current goal  position is very close to the obstacle, KUCH TO CHANGE KAR");
         exit(0);
     }
 
@@ -236,7 +241,7 @@ void GlobalPlanner::_initializeStartAndGoalInPixel(){
 
 
 /* Converts the occupancy callback message into 2d CV::Mat based grid */
-void GlobalPlanner::_occupancyGridCallback(const nav_msgs::OccupancyGrid::ConstPtr& grid)  {
+void LocalPlanner::_occupancyGridCallback(const nav_msgs::OccupancyGrid::ConstPtr& grid)  {
 
     // get grid parameters
     int size = (grid->data).size();
@@ -252,6 +257,8 @@ void GlobalPlanner::_occupancyGridCallback(const nav_msgs::OccupancyGrid::ConstP
     _costmapOriginY = grid->info.origin.position.y;
     _costmapResolution = grid->info.resolution;
 
+    std::cout << "Origin X : " << _costmapOriginX <<"\n"; 
+    std::cout << "Origin Y : " << _costmapOriginY <<"\n"; 
 
     // setup blank image
     _occupancyGridImage = cv::Mat(numRows, numCols, CV_8UC1, cv::Scalar(255));
@@ -277,18 +284,18 @@ void GlobalPlanner::_occupancyGridCallback(const nav_msgs::OccupancyGrid::ConstP
 
 
     // display the image
-    // displayGlobalGrid();
+    // displayLocalGrid();
 }
 
 
 
 
 
-/* Loads the rosparams for global planner */
-void GlobalPlanner::_loadParams(){
+/* Loads the rosparams for local planner */
+void LocalPlanner::_loadParams(){
 
-    while(_globalPlannerName=="unknown" && ros::ok() ){
-        _nh.getParam("robot_info/planner_config/global_planner", _globalPlannerName);
+    while(_LocalPlannerName=="unknown" && ros::ok() ){
+        _nh.getParam("robot_info/planner_config/global_planner", _LocalPlannerName);
         _nh.getParam("robot_info/planner_config/global_planner_config/grid_connections", _gridConnections);
         _nh.getParam("robot_info/planner_config/global_planner_config/resize_grid", _b_resizeGrid);
         _nh.getParam("robot_info/planner_config/global_planner_config/grid_size", _gridSize);
@@ -302,7 +309,7 @@ void GlobalPlanner::_loadParams(){
 
 
 /* Initialize the transformation matrix from Gazebo's world frame to opencv image frame */
-void GlobalPlanner::_initializeTransformationMatrix(){
+void LocalPlanner::_initializeTransformationMatrix(){
 
 
     // origin with effect of resolution
@@ -334,7 +341,7 @@ void GlobalPlanner::_initializeTransformationMatrix(){
 
 
 /* converts a point from openCV frame to world frame */
-Eigen::Vector3d GlobalPlanner::_convertToWorldFrame(Eigen::Vector3d pointInImageFrame){
+Eigen::Vector3d LocalPlanner::_convertToWorldFrame(Eigen::Vector3d pointInImageFrame){
     return _T_World_Image * pointInImageFrame;
 }
 
@@ -343,15 +350,15 @@ Eigen::Vector3d GlobalPlanner::_convertToWorldFrame(Eigen::Vector3d pointInImage
 
 
 /* Converts a point from world frame to  frame */
-Eigen::Vector3d GlobalPlanner::_convertFromWorldFrame(Eigen::Vector3d pointInWorldFrame){
+Eigen::Vector3d LocalPlanner::_convertFromWorldFrame(Eigen::Vector3d pointInWorldFrame){
     return _T_World_Image.inverse() * pointInWorldFrame;
 }
 
 
 
 
-/* Displays the global grid */
-void GlobalPlanner::displayGlobalGrid(){
+/* Displays the local grid */
+void LocalPlanner::displayLocalGrid(){
 
     // wait till callbacks are initialized
     while(!_b_isOccupancyGridImageInitialized && ros::ok()){
@@ -372,39 +379,39 @@ void GlobalPlanner::displayGlobalGrid(){
     // display image
     cv::namedWindow(_windowName , cv::WINDOW_AUTOSIZE);
     cv::imshow(_windowName, _occupancyGridImage);
-    auto k = cv::waitKey(1000);                     // change the constant if you want to see image for long time 
+    auto k = cv::waitKey(0);                     // change the constant if you want to see image for long time 
 
     // destroy image windows
-    // if(k==27){
+    if(k==27){
         cv::destroyAllWindows();
-        // exit(0);
-    // }
+        exit(0);
+    }
 
-    // cv::imwrite("/home/kshah/global.jpg", _occupancyGridImage);
+    // cv::imwrite("/home/kshah/local.jpg", _occupancyGridImage);
 }
 
 
 
 
 /* Calls planning algorithm's makePlan function and receives a vector<vector<int>> path*/
-std::vector<std::vector<double>> GlobalPlanner::makePlan(){
+std::vector<std::vector<double>> LocalPlanner::makePlan(){
 
-    std::vector<std::vector<int>> bestPath = _globalPlannerAStar->makePlan();
+    std::vector<std::vector<int>> bestPath = _LocalPlannerAStar->makePlan();
 
     _extractBestPath(bestPath);
 
-    return _bestPathGlobal;
+    return _bestPathLocal;
 }
 
 
 
 
-/* Converts the global path from pixel coords to meters */
-void GlobalPlanner::_extractBestPath(const std::vector<std::vector<int>>& bestPath){
+/* Converts the local path from pixel coords to meters */
+void LocalPlanner::_extractBestPath(const std::vector<std::vector<int>>& bestPath){
 
     
     int size = bestPath.size();
-    _bestPathGlobal.reserve(size);
+    _bestPathLocal.reserve(size);
 
 
     for(int i=0; i<size; i++){
@@ -414,8 +421,8 @@ void GlobalPlanner::_extractBestPath(const std::vector<std::vector<int>>& bestPa
 
 
         // after getting it into req resolution, convert it into std::vector<double>(x,y) point in meters
-        _bestPathGlobal.emplace_back(
-                        _getSTDVector3Point<double>(
+        _bestPathLocal.emplace_back(
+                        _getSTDVectorPoint<double>(
                             bestEigenPointInPixelCoords) * _costmapResolution );
     }
 
@@ -426,7 +433,7 @@ void GlobalPlanner::_extractBestPath(const std::vector<std::vector<int>>& bestPa
 
 
 /* Resize grid if user resolution is different from RVIZ costmap resolution*/
-void GlobalPlanner::_resizeGrid(){
+void LocalPlanner::_resizeGrid(){
     auto line_no = __LINE__+2;
     try{
         cv::resize(_occupancyGridImage, _occupancyGridImage, cv::Size(_gridSize,_gridSize));
@@ -434,7 +441,7 @@ void GlobalPlanner::_resizeGrid(){
     catch(std::exception& e){
         ROS_ERROR( "Error resizing the image");
         std::cerr << "Exception reference : " << e.what();
-        std::cerr << "Error on line " << line_no << " of Global Planner \n\n";
+        std::cerr << "Error on line " << line_no << " of Local Planner \n\n";
     }
 
     // update the costmap resolution & costmap size
@@ -444,7 +451,20 @@ void GlobalPlanner::_resizeGrid(){
 }
 
 
+int main(int argc, char** argv){
 
+    ros::init(argc, argv, "local_planner");
+    ros::NodeHandle nh;
+
+    LocalPlanner lp(nh);
+
+    std::vector<double> goal{5.0f, 0.0f};
+    // lp.setGoal(goal);
+
+    // lp.makePlan();
+
+    lp.displayLocalGrid();
+}
 
 
 /*
